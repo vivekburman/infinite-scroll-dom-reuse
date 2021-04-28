@@ -29,10 +29,7 @@ class App extends Component {
     this.observer = null;
     this.currentScrollMode = this.SCROLL_MODES.BOTTOM;
     this.snapshot = null;
-    this.elementsSwapped = {
-      bottom: N,
-      top: 0
-    };
+    this.elementsSwapped = N;
   }
   renderList = () => {
     const list = []
@@ -59,18 +56,30 @@ class App extends Component {
       requestAnimationFrame(() => {
         const childrenNodes = Array.from(rootRef.children);
         let pixelsAdded = 0;
-        childrenNodes.forEach((el, index, arr) => {
-          if (N - this.elementsSwapped.bottom <= index) {
-            const {selfHeight, offset} = this.getPosition(arr, index);
-            el.style.transform = `translate(100px, ${offset}px)`;
-            pixelsAdded += selfHeight;           
-            el.classList.remove("visible-hidden");
+        if (this.currentScrollMode == this.SCROLL_MODES.BOTTOM) {
+          childrenNodes.forEach((el, index, arr) => {
+            if (N - this.elementsSwapped <= index) {
+              const {selfHeight, offset} = this.getPosition(arr, index);
+              el.style.transform = `translate(100px, ${offset}px)`;
+              pixelsAdded += selfHeight;           
+              el.classList.remove("visible-hidden");
+            }
+          });
+        } else {
+          for(let i = childrenNodes.length - 1; i >= 0; i--) {
+            if (this.elementsSwapped > i) {
+              const el = childrenNodes[i];
+              const {selfHeight, offset} = this.getPosition(childrenNodes, i);
+              el.style.transform = `translate(100px, ${offset}px)`;
+              pixelsAdded += selfHeight;           
+              el.classList.remove("visible-hidden");
+            }
           }
-        });
-        const prevHeight = rootRef.offsetHeight;
+        }
+        
         if (currentScrollMode === this.SCROLL_MODES.BOTTOM) {
           this.heightAdjustments.bottom = snapshot ? (this.heightAdjustments.bottom + pixelsAdded) : this.heightAdjustments.bottom;
-          rootRef.style.height = (prevHeight + pixelsAdded) + "px";
+          rootRef.style.height = (rootRef.offsetHeight + pixelsAdded) + "px";
         }
         this.attachObserver();
         });
@@ -88,10 +97,13 @@ class App extends Component {
       selfHeight: arr[index].getBoundingClientRect().height,
       offset: 0
     };
-    if (index < 1)return res;
-    const style = arr[index - 1].style.transform;
+    if (index < 1) return res;
+    const isBottomScroll = this.SCROLL_MODES.BOTTOM === this.currentScrollMode;
+    const i = isBottomScroll ? index - 1 : index + 1;
+    const style = arr[i].style.transform;
     if (!style || !style.length) return res;
-    res.offset = (+style.split(",")[1].trim().slice(0, -3)) + arr[index - 1].getBoundingClientRect().height;
+    res.offset = (+style.split(",")[1].trim().slice(0, -3)) + 
+      (isBottomScroll ?  arr[i].getBoundingClientRect().height : -arr[i].getBoundingClientRect().height);
     return res;
   }
 
@@ -117,20 +129,18 @@ class App extends Component {
   getOutOfViewportElements = (mode) => {
     if (mode === this.SCROLL_MODES.TOP) {
       if(this.rootRef.current) {
-        let offset = 0;
         let i = 0;
-        const thresholdHeight = this.rootRef.current.scrollHeight - 
-          (document.scrollingElement.scrollTop - this.rootRef.current.clientTop + this.rootRef.current.offsetHeight);
+        const thresholdHeight = document.scrollingElement.scrollTop - this.rootRef.current.clientTop + window.innerHeight;
         const children = Array.from(this.rootRef.current.children);
-        for (i=children.length - 1; i >=0; i--) {
-          offset += children[i].offsetHeight;
-          if (thresholdHeight <= offset) {
+        for (i = children.length - 1; i >=0; i--) {
+          if (thresholdHeight >= this.getTransformY(children[i])) {
             break;
           } 
         }
         i = children.length - 1 - i;
         i = Math.min(i, this.boundary.start);
-        i !== 0 && this.updateState(this.boundary.start - i, this.boundary.end - i + 1, mode);
+        i !== 0 && this.updateState(this.boundary.start - i + 1, this.boundary.end - i + 1, mode);
+        this.elementsSwapped = i;
       }
     } else if (mode === this.SCROLL_MODES.BOTTOM) {
       if(this.rootRef.current) {
@@ -143,8 +153,8 @@ class App extends Component {
           } 
         }
         i = Math.min(i, testData.length - 1 - this.boundary.end);
-        i !== 0 && this.updateState(this.boundary.start + i - 1, this.boundary.end + i, mode);
-        this.elementsSwapped.bottom = i;
+        i !== 0 && this.updateState(this.boundary.start + i - 1, this.boundary.end + i - 1, mode);
+        this.elementsSwapped = i;
       }
     }
   }
@@ -157,7 +167,8 @@ class App extends Component {
     };
   }
   updateState = (start, end, mode) => {
-    if (start < 0 || end > this.testData.length || (start == this.boundary.start && end == this.boundary.end)) {
+    if (start < 0 || start > end || end < start || end > this.testData.length 
+      || (start == this.boundary.start && end == this.boundary.end)) {
       return;
     }
     this.snapshot = this.getPrevSnapShot();
