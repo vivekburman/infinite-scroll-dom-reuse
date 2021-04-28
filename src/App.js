@@ -143,7 +143,7 @@ class App extends Component {
           } 
         }
         i = Math.min(i, testData.length - 1 - this.boundary.end);
-        i !== 0 && this.updateState(this.boundary.start + i, this.boundary.end + i, mode);
+        i !== 0 && this.updateState(this.boundary.start + i - 1, this.boundary.end + i, mode);
         this.elementsSwapped.bottom = i;
       }
     }
@@ -157,7 +157,7 @@ class App extends Component {
     };
   }
   updateState = (start, end, mode) => {
-    if (start == this.boundary.start && end == this.boundary.end) {
+    if (start < 0 || end > this.testData.length || (start == this.boundary.start && end == this.boundary.end)) {
       return;
     }
     this.snapshot = this.getPrevSnapShot();
