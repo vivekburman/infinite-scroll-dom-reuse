@@ -16,15 +16,12 @@ class App extends Component {
     };
     this.testData = testData;
     this.state = {
-      data: this.testData.slice(this.boundary.start, this.boundary.end)
+      data: this.testData.slice(this.boundary.start, this.boundary.end),
+      addNewHeight: true
     };
     this.SCROLL_MODES = {
       'TOP': "top",
       'BOTTOM': "bottom"
-    };
-    this.heightAdjustments = {
-      bottom: 0,
-      top: 0
     };
     this.observer = null;
     this.currentScrollMode = this.SCROLL_MODES.BOTTOM;
@@ -55,13 +52,13 @@ class App extends Component {
       const currentScrollMode = this.currentScrollMode;
       requestAnimationFrame(() => {
         const childrenNodes = Array.from(rootRef.children);
-        let pixelsAdded = 0;
+        let wrapperNewHeight = 0;
         if (this.currentScrollMode == this.SCROLL_MODES.BOTTOM) {
           childrenNodes.forEach((el, index, arr) => {
             if (N - this.elementsSwapped <= index) {
               const {selfHeight, offset} = this.getPosition(arr, index);
               el.style.transform = `translate(100px, ${offset}px)`;
-              pixelsAdded += selfHeight;           
+              wrapperNewHeight = selfHeight + offset;           
               el.classList.remove("visible-hidden");
             }
           });
@@ -69,17 +66,15 @@ class App extends Component {
           for(let i = childrenNodes.length - 1; i >= 0; i--) {
             if (this.elementsSwapped > i) {
               const el = childrenNodes[i];
-              const {selfHeight, offset} = this.getPosition(childrenNodes, i);
+              const {offset} = this.getPosition(childrenNodes, i);
               el.style.transform = `translate(100px, ${offset}px)`;
-              pixelsAdded += selfHeight;           
               el.classList.remove("visible-hidden");
             }
           }
         }
         
-        if (currentScrollMode === this.SCROLL_MODES.BOTTOM) {
-          this.heightAdjustments.bottom = snapshot ? (this.heightAdjustments.bottom + pixelsAdded) : this.heightAdjustments.bottom;
-          rootRef.style.height = (rootRef.offsetHeight + pixelsAdded) + "px";
+        if (currentScrollMode === this.SCROLL_MODES.BOTTOM && this.state.addNewHeight) {
+          rootRef.style.height = wrapperNewHeight + "px";
         }
         this.attachObserver();
         });
@@ -97,13 +92,13 @@ class App extends Component {
       selfHeight: arr[index].getBoundingClientRect().height,
       offset: 0
     };
-    if (index < 1) return res;
     const isBottomScroll = this.SCROLL_MODES.BOTTOM === this.currentScrollMode;
+    if (isBottomScroll && index < 1) return res;
     const i = isBottomScroll ? index - 1 : index + 1;
     const style = arr[i].style.transform;
     if (!style || !style.length) return res;
     res.offset = (+style.split(",")[1].trim().slice(0, -3)) + 
-      (isBottomScroll ?  arr[i].getBoundingClientRect().height : -arr[i].getBoundingClientRect().height);
+      (isBottomScroll ?  arr[i].getBoundingClientRect().height : -arr[index].getBoundingClientRect().height);
     return res;
   }
 
@@ -139,8 +134,23 @@ class App extends Component {
         }
         i = children.length - 1 - i;
         i = Math.min(i, this.boundary.start);
-        i !== 0 && this.updateState(this.boundary.start - i + 1, this.boundary.end - i + 1, mode);
-        this.elementsSwapped = i;
+        if (i > 0) {
+          if (this.boundary.start == 1) {
+            const _start = 0;
+            const _end = N;
+            if (this.isUpdateNeeded(_start, _end)) {
+              this.updateState(0, N, mode);
+              this.elementsSwapped = 1;
+            }
+          } else {
+            const _start = this.boundary.start - i + 1;
+            const _end = this.boundary.end - i + 1;
+            if (this.isUpdateNeeded(_start, _end)) {
+              this.updateState(_start, _end, mode);
+              this.elementsSwapped = i;
+            }
+          }
+        }
       }
     } else if (mode === this.SCROLL_MODES.BOTTOM) {
       if(this.rootRef.current) {
@@ -152,12 +162,36 @@ class App extends Component {
             break;
           } 
         }
-        i = Math.min(i, testData.length - 1 - this.boundary.end);
-        i !== 0 && this.updateState(this.boundary.start + i - 1, this.boundary.end + i - 1, mode);
-        this.elementsSwapped = i;
+        i = Math.min(i, this.testData.length - 1 - this.boundary.end);
+        if (i > 0) {
+          if (this.boundary.end == this.testData.length - 2) {
+            const _start = this.testData.length - N;
+            const _end = this.testData.length;
+            if (this.isUpdateNeeded(_start, _end)) {
+              this.updateState(_start, _end, mode);
+              this.elementsSwapped = 2;
+            }
+          } else {
+            const _start = this.boundary.start + i - 1;
+            const _end = this.boundary.end + i - 1;
+            if (this.isUpdateNeeded(_start, _end)) {
+              this.updateState(_start, _end, mode);
+              this.elementsSwapped = i;  
+            }
+          }
+        }
       }
     }
   }
+
+  isUpdateNeeded = (start, end) => {
+    if (start < 0 || start > end || end < start || end > this.testData.length 
+      || (start == this.boundary.start && end == this.boundary.end)) {
+      return false;
+    }
+    return true;
+  }
+
   getPrevSnapShot = () => {
     return {
       bottomRef: this.bottomRef.current.getBoundingClientRect(),
@@ -167,10 +201,6 @@ class App extends Component {
     };
   }
   updateState = (start, end, mode) => {
-    if (start < 0 || start > end || end < start || end > this.testData.length 
-      || (start == this.boundary.start && end == this.boundary.end)) {
-      return;
-    }
     this.snapshot = this.getPrevSnapShot();
     this.resetObservation();
     this.currentScrollMode = mode;
@@ -178,9 +208,16 @@ class App extends Component {
       start: start,
       end: end
     };
-    this.setState({
-      data: this.testData.slice(start, end)
-    })
+    this.setState(this.getNewState(start, end));
+  }
+  getNewState = (start, end) => {
+    let addNewHeight = false;
+    const data = this.testData.slice(start, end).map((i) => {
+      if (!i.hasOwnProperty('visited')) addNewHeight = true; 
+      i.visited = true
+      return i;
+    });
+    return {data, addNewHeight};
   }
   callback = (entries, observer) => {
     entries.forEach((entry) => {
