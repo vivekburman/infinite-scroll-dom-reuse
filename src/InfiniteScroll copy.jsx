@@ -21,17 +21,15 @@ class InfiniteScroll extends Component {
     this.rootRef = createRef();
     this.wrapperOffset = null;
     this.sliderSize = this.props.sliderSize || N;
-    this.isDataStatic = this.props.isDataStatic || false;
     this.boundary = {
       start: 0,
       end: this.sliderSize
     };
-    this.totalStaticData = this.isDataStatic ? this.props.totalStaticData : null;
+    this.totalStaticData = null;
+
     this.state = {
-      data: this.isDataStatic ? this.totalStaticData.slice(this.boundary.start, this.boundary.end) 
-        : [],
-      loading: !this.isDataStatic,
-      addNewHeight: this.isDataStatic
+      data: [],
+      addNewHeight: false
     };
     this.SCROLL_MODES = {
       'TOP': "top",
@@ -39,7 +37,8 @@ class InfiniteScroll extends Component {
     };
     this.observer = null;
     this.currentScrollMode = this.SCROLL_MODES.BOTTOM;
-    this.elementsSwapped = this.props.isDataStatic ? this.sliderSize : 0;
+    this.snapshot = null;
+    this.elementsSwapped = 0;
   }
   
   renderList = () => {
@@ -60,7 +59,7 @@ class InfiniteScroll extends Component {
     }
     return list;
   }
-  positionElements = () => {
+  positionElements = (snapshot) => {
     if (this.rootRef.current) {
       const rootRef = this.rootRef.current;
       const currentScrollMode = this.currentScrollMode;
@@ -95,19 +94,14 @@ class InfiniteScroll extends Component {
     }
   }
   async componentDidMount() {
-    if (this.isDataStatic) {
-      this.positionElements();
-      this.initiateObserver();
-      this.setWrapperOffset();
-    } else {
-      const {data, isLast} = await this.props.getRangeData(this.boundary.start, this.boundary.end);
-      this.setDynamicDataToState(data, isLast);
-    }
-  }
-  componentDidUpdate() {
+    const data = await this.props.getRangeData(this.boundary.start, this.boundary.end);
+    this.setDynamicDataToState(data);
     this.positionElements();
     this.initiateObserver();
-    this.setWrapperOffset(); 
+    this.setWrapperOffset();
+  }
+  componentDidUpdate() {
+    this.positionElements(this.snapshot);
   }
   setWrapperOffset = () => {
     this.wrapperOffset = this.rootRef.current ? this.rootRef.current.getBoundingClientRect().top : 0;
@@ -146,120 +140,67 @@ class InfiniteScroll extends Component {
     this.topRef.current && this.observer.observe(this.topRef.current);
     this.bottomRef.current && this.observer.observe(this.bottomRef.current);
   }
-  getOutOfViewportElementsTop = () => {
-    if(this.rootRef.current) {
-      let i = 0;
-      const thresholdHeight = document.scrollingElement.scrollTop - this.rootRef.current.clientTop + window.innerHeight - this.wrapperOffset;
-      const children = Array.from(this.rootRef.current.children);
-      for (i = children.length - 1; i >=0; i--) {
-        if (thresholdHeight >= this.getTransformY(children[i])) {
-          break;
-        } 
-      }
-      i = children.length - 1 - i;
-      i = Math.min(i, this.boundary.start);
-      if (i > 0) {
-        if (this.boundary.start == 1) {
-          const _start = 0;
-          const _end = this.sliderSize;
-          if (this.isUpdateNeeded(_start, _end)) {
-            this.updateState(0, this.sliderSize, mode);
-            this.elementsSwapped = 1;
-          }
-        } else {
-          const _start = this.boundary.start - i + 1;
-          const _end = this.boundary.end - i + 1;
-          if (this.isUpdateNeeded(_start, _end)) {
-            this.updateState(_start, _end, mode);
-            this.elementsSwapped = i;
-          }
+
+  getOutOfViewportElements = (mode) => {
+    if (mode === this.SCROLL_MODES.TOP) {
+      if(this.rootRef.current) {
+        let i = 0;
+        const thresholdHeight = document.scrollingElement.scrollTop - this.rootRef.current.clientTop + window.innerHeight - this.wrapperOffset;
+        const children = Array.from(this.rootRef.current.children);
+        for (i = children.length - 1; i >=0; i--) {
+          if (thresholdHeight >= this.getTransformY(children[i])) {
+            break;
+          } 
         }
-      }
-    }
-  }
-
-  getBottomNextElememts = (elementsToBeSwapped, mode) => {
-    elementsToBeSwapped = Math.min(elementsToBeSwapped, this.totalStaticData.length - 1 - this.boundary.end);
-    if (elementsToBeSwapped > 0) {
-      if (this.boundary.end == this.totalStaticData.length - 2) {
-        const _start = this.totalStaticData.length - this.sliderSize;
-        const _end = this.totalStaticData.length;
-        if (this.isUpdateNeeded(_start, _end)) {
-          this.updateState(_start, _end, mode);
-          this.elementsSwapped = 2;
-        }
-      } else {
-        const _start = this.boundary.start + elementsToBeSwapped - 1;
-        const _end = this.boundary.end + elementsToBeSwapped - 1;
-        if (this.isUpdateNeeded(_start, _end)) {
-          this.updateState(_start, _end, mode);
-          this.elementsSwapped = elementsToBeSwapped;  
-        }
-      }
-    }
-  }
-
-  getCommonItemsIndexInArray = (arrA, arrB, id) => {
-    let i = 0, j = 0;
-    for(i = 0; i < arrA.length; i++) {
-      if (arrA[i][id] == arrB[0][id]) break;
-    }
-    while(arrA[i][id] == arrB[j][id]) {
-      j++;
-    }
-    return j;
-  }
-
-
-  getBottomNextElementsPromise = async (elementsToBeSwapped) => {
-    this.setState({loading: true});
-    const {data, isLast} = await this.props.getRangeData(this.boundary.start + elementsToBeSwapped, this.boundary.end + elementsToBeSwapped);
-    if (data.length == 0) {
-      this.setState({loading: false});
-      this.elementsSwapped = 0;
-    } else {
-        const dataIndex = this.props.dataIndex;
-        elementsToBeSwapped = (elementsToBeSwapped, data.length - this.getCommonItemsIndexInArray(this.state.data, data, dataIndex));
-        if (elementsToBeSwapped > 0) {
-          if (isLast) {
-            const _start = data[data.length - 1][dataIndex] + 1 - this.sliderSize;
-            const _end = data[data.length - 1][dataIndex] + 1;
+        i = children.length - 1 - i;
+        i = Math.min(i, this.boundary.start);
+        if (i > 0) {
+          if (this.boundary.start == 1) {
+            const _start = 0;
+            const _end = this.sliderSize;
             if (this.isUpdateNeeded(_start, _end)) {
-              this.updateState(_start, _end, mode);
-              this.elementsSwapped = 2;
+              this.updateState(0, this.sliderSize, mode);
+              this.elementsSwapped = 1;
             }
           } else {
+            const _start = this.boundary.start - i + 1;
+            const _end = this.boundary.end - i + 1;
+            if (this.isUpdateNeeded(_start, _end)) {
+              this.updateState(_start, _end, mode);
+              this.elementsSwapped = i;
+            }
+          }
+        }
+      }
+    } else if (mode === this.SCROLL_MODES.BOTTOM) {
+      if(this.rootRef.current) {
+        let i = 0;
+        const thresholdHeight = document.scrollingElement.scrollTop - this.wrapperOffset;
+        const children = Array.from(this.rootRef.current.children);
+        for (i=0; i < children.length; i++) {
+          if (thresholdHeight <= this.getTransformY(children[i]) + children[i].getBoundingClientRect().height) {
+            break;
+          } 
+        }
+        i = Math.min(i, this.totalStaticData.length - 1 - this.boundary.end);
+        if (i > 0) {
+          if (this.boundary.end == this.totalStaticData.length - 2) {
             const _start = this.totalStaticData.length - this.sliderSize;
             const _end = this.totalStaticData.length;
             if (this.isUpdateNeeded(_start, _end)) {
               this.updateState(_start, _end, mode);
               this.elementsSwapped = 2;
             }
+          } else {
+            const _start = this.boundary.start + i - 1;
+            const _end = this.boundary.end + i - 1;
+            if (this.isUpdateNeeded(_start, _end)) {
+              this.updateState(_start, _end, mode);
+              this.elementsSwapped = i;  
+            }
           }
         }
-    }
-  }
-
-  getOutOfViewportElementsBottom = () => {
-    if(this.rootRef.current) {
-      let i = 0;
-      const thresholdHeight = document.scrollingElement.scrollTop - this.wrapperOffset;
-      const children = Array.from(this.rootRef.current.children);
-      for (i=0; i < children.length; i++) {
-        if (thresholdHeight <= this.getTransformY(children[i]) + children[i].getBoundingClientRect().height) {
-          break;
-        } 
       }
-      this.isDataStatic ? this.getBottomNextElememts(i, this.SCROLL_MODES.BOTTOM) 
-        : this.getBottomNextElementsPromise(i, this.SCROLL_MODES.BOTTOM);
-    }
-  }
-
-  getOutOfViewportElements = (mode) => {
-    if (mode === this.SCROLL_MODES.TOP) {
-      this.getOutOfViewportElementsTop();
-    } else if (mode === this.SCROLL_MODES.BOTTOM) {
-      this.getOutOfViewportElementsBottom();
     }
   }
 
@@ -270,7 +211,17 @@ class InfiniteScroll extends Component {
     }
     return true;
   }
+
+  getPrevSnapShot = () => {
+    return {
+      bottomRef: this.bottomRef.current.getBoundingClientRect(),
+      topRef: this.topRef.current.getBoundingClientRect(),
+      scrollPosition: this.snapshot ? document.scrollingElement.scrollTop + this.snapshot.scrollPosition 
+      : document.scrollingElement.scrollTop
+    };
+  }
   updateState = (start, end, mode) => {
+    this.snapshot = this.getPrevSnapShot();
     this.resetObservation();
     this.currentScrollMode = mode;
     this.boundary = {
@@ -309,22 +260,15 @@ class InfiniteScroll extends Component {
     else if (index === this.sliderSize - 1) return this.bottomRef;
   }
 
-  setDynamicDataToState = (data, isLast) => {
-    this.setState({data: data, loading: false, isLast});
+  setDynamicDataToState = (data) => {
+    this.setState({data: data});
   }
 
   render () {
-    const {data, loading} = this.state;
     return (
       <div className="App">
         {
-          this.isDataStatic ? 
-          <ul className="list-wrapper"
-          ref={this.rootRef}>
-            {this.renderList()}
-          </ul>
-          :
-          loading ?
+          this.state.data.length == 0 ?
           this.props.getLoadingUI() : 
           <ul className="list-wrapper"
           ref={this.rootRef}>
@@ -339,7 +283,6 @@ class InfiniteScroll extends Component {
 
 InfiniteScroll.propTypes = {
   sliderSize: Proptypes.number,
-  dataIndex: Proptypes.string,
   isDataStatic: Proptypes.bool,
   totalStaticData: Proptypes.array,
   getRangeData: Proptypes.func,
