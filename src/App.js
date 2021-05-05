@@ -1,6 +1,7 @@
 import './App.css';
 import React, { Component } from 'react';
-import InfiniteScroll from './InfiniteScroll';
+// import InfiniteScroll from './InfiniteScrollStatic';
+import InfiniteScroll from './InfiniteScrollDynamic';
 import {testData} from './data';
 
 class App extends Component {
@@ -22,7 +23,7 @@ class App extends Component {
     // return (
     //   <div className="App">
     //     <h1 className="header">Header</h1>
-    //     <InfiniteScroll isDataStatic={true} 
+    //     <InfiniteScroll
     //       totalStaticData={testData} 
     //       sliderSize={15}
     //       getListItemDOM = {this.getRenderItemDOM}
@@ -34,7 +35,6 @@ class App extends Component {
       <div className="App">
         <h1 className="header">Header</h1>
         <InfiniteScroll 
-        isDataStatic={false}
         sliderSize={15}
         getLoadingUI={this.getLoadingUI}
         getListItemDOM={this.getRenderItemDOM}
