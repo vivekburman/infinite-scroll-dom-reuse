@@ -266,7 +266,7 @@ class InfiniteScroll extends Component {
   render () {
     return (
       <div className="App">
-          <div>Static</div>
+          <p>Static</p>
 
           <ul className="list-wrapper"
           ref={this.rootRef}>

@@ -304,7 +304,7 @@ class InfiniteScroll extends Component {
     const {data, loading} = this.state;
     return (
       <div className="App">
-        <div>Dynamic</div>
+        <p>Dynamic</p>
         {
           data.length === 0 && loading ?
           this.props.getLoadingUI() : 

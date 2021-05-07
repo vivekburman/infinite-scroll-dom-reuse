@@ -2,7 +2,7 @@ import './App.css';
 import React, { Component } from 'react';
 import InfiniteScrollStatic from './InfiniteScrollStatic';
 import InfiniteScrollDynamic from './InfiniteScrollDynamic';
-import {testDataStatic, testDataDynamic} from './data';
+import {testData} from './data';
 
 
 let i = 1;
@@ -25,11 +25,11 @@ class App extends Component {
   getRangeData = (start, end) => {
     if (i == 1) {
       i++;
-      return Promise.resolve({data: testDataDynamic.slice(start, end), isLast: testDataDynamic.length - 1 <= end});
+      return Promise.resolve({data: testData.slice(start, end), isLast: testData.length - 1 <= end});
     }
     return new Promise((resolve) => {
       setTimeout(() => {
-        resolve({data: testDataDynamic.slice(start, end), isLast: testDataDynamic.length - 1 <= end});
+        resolve({data: testData.slice(start, end), isLast: testData.length - 1 <= end});
       }, 5000);
     })
   }
@@ -50,12 +50,24 @@ class App extends Component {
   render () {
     return (
       <div className="App">
-        <h1 className="header">Header</h1>
+        <h1 className="header">
+          <em>
+            Infinite Scroll with DOM Reuse for both Static and Dynamic
+            data
+          </em>
+        </h1>
         <div className="flex">
-          <button onClick={this.showDynamic}>
+          <button className={
+              "button " +
+              (this.state.activeMode === this.MODES.DYNAMIC ? "selected" : "")
+            }
+            onClick={this.showDynamic}>
             Dynamic
           </button>
-          <button onClick={this.showStatic}>
+          <button className={
+              "button " +
+              (this.state.activeMode === this.MODES.STATIC ? "selected" : "")
+            } onClick={this.showStatic}>
             Static
           </button>
         </div>
@@ -70,7 +82,7 @@ class App extends Component {
             dataIndex="name"/>
             :
           <InfiniteScrollStatic
-            totalStaticData={testDataStatic} 
+            totalStaticData={testData} 
             sliderSize={15}
             getListItemDOM = {this.getRenderItemDOM}/>
           }

@@ -32,11 +32,26 @@ code {
   word-break: break-all;
 }
 .header {
-  height: 435px;
+  font-size: 24px;
 }
 .flex {
   display: flex;
 }
 .flex-item {
   width: 50%;
+}
+.button {
+  cursor: pointer;
+  border: none;
+  border-bottom: 2px solid rgb(85, 123, 133);
+  margin-left: 5px;
+  margin-right: 15px;
+  font-size: 14px;
+  color: #fff;
+  background: rgb(105, 168, 184);
+  padding: 8px 12px;
+  border-radius: 4px;
+}
+.button.selected {
+  background: rgb(37, 48, 51);
 }
