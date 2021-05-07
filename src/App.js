@@ -30,7 +30,7 @@ class App extends Component {
     return new Promise((resolve) => {
       setTimeout(() => {
         resolve({data: testData.slice(start, end), isLast: testData.length - 1 <= end});
-      }, 5000);
+      }, 500);
     })
   }
 
