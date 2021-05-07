@@ -31,3 +31,12 @@ code {
   width: 550px;
   word-break: break-all;
 }
+.header {
+  height: 435px;
+}
+.flex {
+  display: flex;
+}
+.flex-item {
+  width: 50%;
+}
