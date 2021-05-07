@@ -27,7 +27,6 @@ class InfiniteScroll extends Component {
     this.totalStaticData = this.props.totalStaticData;
     this.state = {
       data: this.totalStaticData.slice(this.boundary.start, this.boundary.end),
-      addNewHeight: true
     };
     this.SCROLL_MODES = {
       'TOP': "top",
@@ -81,6 +80,10 @@ class InfiniteScroll extends Component {
       i--;
     }
   }
+  newHeightNeeded = (rootRef, newHeight) => {
+    const height = +rootRef.style.height.slice(0, -2);
+    return height < newHeight;
+  }
   positionElements = () => {
     if (this.rootRef.current) {
       const rootRef = this.rootRef.current;
@@ -88,12 +91,12 @@ class InfiniteScroll extends Component {
       requestAnimationFrame(() => {
         const childrenNodes = Array.from(rootRef.children);
         let wrapperNewHeight = 0;
-        if (this.currentScrollMode == this.SCROLL_MODES.BOTTOM) {
+        if (this.currentScrollMode === this.SCROLL_MODES.BOTTOM) {
           wrapperNewHeight = this.positionElementsBottom(childrenNodes);   
         } else {
           this.positionElementsTop(childrenNodes);   
         }
-        if (currentScrollMode === this.SCROLL_MODES.BOTTOM && this.state.addNewHeight) {
+        if (currentScrollMode === this.SCROLL_MODES.BOTTOM &&  this.newHeightNeeded(rootRef, wrapperNewHeight)) {
           rootRef.style.height = wrapperNewHeight + "px";
         }
         this.attachObserver();
@@ -158,7 +161,7 @@ class InfiniteScroll extends Component {
       i = children.length - 1 - i;
       i = Math.min(i, this.boundary.start);
       if (i > 0) {
-        if (this.boundary.start == 1) {
+        if (this.boundary.start === 1) {
           const _start = 0;
           const _end = this.sliderSize;
           if (this.isUpdateNeeded(_start, _end)) {
@@ -180,7 +183,7 @@ class InfiniteScroll extends Component {
   getBottomNextElememts = (elementsToBeSwapped, mode) => {
     elementsToBeSwapped = Math.min(elementsToBeSwapped, this.totalStaticData.length - 1 - this.boundary.end);
     if (elementsToBeSwapped > 0) {
-      if (this.boundary.end == this.totalStaticData.length - 2) {
+      if (this.boundary.end === this.totalStaticData.length - 2) {
         const _start = this.totalStaticData.length - this.sliderSize;
         const _end = this.totalStaticData.length;
         if (this.isUpdateNeeded(_start, _end)) {
@@ -208,7 +211,7 @@ class InfiniteScroll extends Component {
           break;
         } 
       }
-      this.getBottomNextElememts(i, this.SCROLL_MODES.BOTTOM); 
+      i > 0 && this.getBottomNextElememts(i, this.SCROLL_MODES.BOTTOM); 
     }
   }
 
@@ -222,7 +225,7 @@ class InfiniteScroll extends Component {
 
   isUpdateNeeded = (start, end) => {
     if (start < 0 || start > end || end < start || 
-      (start == this.boundary.start && end == this.boundary.end)
+      (start === this.boundary.start && end === this.boundary.end)
       || end > this.totalStaticData.length) return false; 
     return true;
   }
@@ -236,13 +239,8 @@ class InfiniteScroll extends Component {
     this.setState(this.getNewState(start, end));
   }
   getNewState = (start, end) => {
-    let addNewHeight = false;
-    const data = this.totalStaticData.slice(start, end).map((i) => {
-      if (!i.hasOwnProperty('visited')) addNewHeight = true; 
-      i.visited = true
-      return i;
-    });
-    return {data, addNewHeight};
+    const data = this.totalStaticData.slice(start, end);
+    return {data};
   }
   callback = (entries, observer) => {
     entries.forEach((entry) => {
@@ -268,6 +266,8 @@ class InfiniteScroll extends Component {
   render () {
     return (
       <div className="App">
+          <div>Static</div>
+
           <ul className="list-wrapper"
           ref={this.rootRef}>
             {this.renderList()}

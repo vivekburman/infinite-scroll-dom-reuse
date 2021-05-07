@@ -7,6 +7,17 @@ import {testDataStatic, testDataDynamic} from './data';
 
 let i = 1;
 class App extends Component {
+
+  constructor(props) {
+    super(props);
+    this.MODES = {
+      "DYNAMIC": 1,
+      "STATIC": 2
+    };
+    this.state = {
+      activeMode: this.MODES.DYNAMIC
+    }
+  }
   getRenderItemDOM = (data, index) => {
     return  <p className="list-item-text">{data.name + " ----- " + data.text}</p>;
   }
@@ -19,7 +30,7 @@ class App extends Component {
     return new Promise((resolve) => {
       setTimeout(() => {
         resolve({data: testDataDynamic.slice(start, end), isLast: testDataDynamic.length - 1 <= end});
-      }, 300);
+      }, 5000);
     })
   }
 
@@ -27,27 +38,43 @@ class App extends Component {
     return <h1>Loading......</h1>
   }
 
+
+  showDynamic = () => {
+    this.setState({activeMode: this.MODES.DYNAMIC});
+  }
+
+  showStatic = () => {
+    this.setState({activeMode: this.MODES.STATIC});
+  }
+
   render () {
     return (
       <div className="App">
         <h1 className="header">Header</h1>
         <div className="flex">
-          <div className="flex-item">
-            <div>Dynamic</div>
-            <InfiniteScrollDynamic 
-              sliderSize={15}
-              getLoadingUI={this.getLoadingUI}
-              getListItemDOM={this.getRenderItemDOM}
-              getRangeData={this.getRangeData}
-              dataIndex="name"/>
-          </div>
-          <div className="flex-item">
-            <div>Static</div>
-            {/* <InfiniteScrollStatic
-              totalStaticData={testDataStatic} 
-              sliderSize={15}
-              getListItemDOM = {this.getRenderItemDOM}/> */}
-          </div>
+          <button onClick={this.showDynamic}>
+            Dynamic
+          </button>
+          <button onClick={this.showStatic}>
+            Static
+          </button>
+        </div>
+        <div>
+          {
+            this.state.activeMode == this.MODES.DYNAMIC ?
+          <InfiniteScrollDynamic 
+            sliderSize={15}
+            getLoadingUI={this.getLoadingUI}
+            getListItemDOM={this.getRenderItemDOM}
+            getRangeData={this.getRangeData}
+            dataIndex="name"/>
+            :
+          <InfiniteScrollStatic
+            totalStaticData={testDataStatic} 
+            sliderSize={15}
+            getListItemDOM = {this.getRenderItemDOM}/>
+          }
+          
         </div>
       </div>
     );

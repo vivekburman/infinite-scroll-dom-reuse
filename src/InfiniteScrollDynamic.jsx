@@ -26,7 +26,6 @@ class InfiniteScroll extends Component {
     this.state = {
       data: [],
       loading: true,
-      addNewHeight: false
     };
     this.SCROLL_MODES = {
       'TOP': "top",
@@ -58,13 +57,12 @@ class InfiniteScroll extends Component {
       );
     }
     if (this.shouldAddInlineLoader()) {
-      list.push(
-      <li key="loading" id="loader" className="list-item-wrapper">
+      const el = <li key="loading" id="loader" className="list-item-wrapper">
         {
           this.props.getLoadingUI()
         }
-      </li>
-      );
+      </li>;
+      this.currentScrollMode === this.SCROLL_MODES.BOTTOM ? list.push(el) : list.unshift(el);
     }
     return list;
   }
@@ -93,6 +91,12 @@ class InfiniteScroll extends Component {
       i--;
     }
   }
+
+  newHeightNeeded = (rootRef, newHeight) => {
+    const height = +rootRef.style.height.slice(0, -2);
+    return height < newHeight;
+  }
+
   positionElements = () => {
     if (this.rootRef.current) {
       const rootRef = this.rootRef.current;
@@ -100,12 +104,12 @@ class InfiniteScroll extends Component {
       requestAnimationFrame(() => {
         const childrenNodes = Array.from(rootRef.children);
         let wrapperNewHeight = 0;
-        if (this.currentScrollMode == this.SCROLL_MODES.BOTTOM) {
+        if (this.currentScrollMode === this.SCROLL_MODES.BOTTOM) {
           wrapperNewHeight = this.positionElementsBottom(childrenNodes);   
         } else {
           this.positionElementsTop(childrenNodes);   
         }
-        if (currentScrollMode === this.SCROLL_MODES.BOTTOM && this.state.addNewHeight) {
+        if (currentScrollMode === this.SCROLL_MODES.BOTTOM && this.newHeightNeeded(rootRef, wrapperNewHeight)) {
           rootRef.style.height = wrapperNewHeight + "px";
         }
         this.attachObserver();
@@ -160,7 +164,37 @@ class InfiniteScroll extends Component {
     this.topRef.current && this.observer.observe(this.topRef.current);
     this.bottomRef.current && this.observer.observe(this.bottomRef.current);
   }
-  getOutOfViewportElementsTop = (mode) => {
+
+  getTopNextElements = async (elementsToBeSwapped) => {
+    if (this.boundary.start == 0) return;
+    this.elementsSwapped = 1;
+    this.setCurrentScrollMode(this.SCROLL_MODES.TOP);
+    this.setState({loading: true});
+    elementsToBeSwapped -= 1;
+    const dataIndex = this.props.dataIndex;
+    const _stateData = this.state.data;
+    const _fetchEnd = _stateData[0][dataIndex];
+    const _fetchStart = Math.max(0, _fetchEnd - elementsToBeSwapped);
+    let {data} = await this.props.getRangeData(_fetchStart, _fetchEnd);
+    if (data.length === 0) {
+      this.setState({loading: false});
+      this.elementsSwapped = 0;
+    } else {
+        const isFirst = data[0][dataIndex] === 0;
+        if (isFirst) {
+          elementsToBeSwapped = data.length;
+        }
+        data = [...data, ...this.state.data.slice(0, this.sliderSize - elementsToBeSwapped)];
+        const _start = data[0][dataIndex];
+        const _end = data[data.length - 1][dataIndex] + 1;
+
+        if (this.isUpdateNeeded(_start, _end)) {
+          this.updateState(_start, _end, data);
+          this.elementsSwapped = elementsToBeSwapped;           
+        }
+    }
+  }
+  getOutOfViewportElementsTop = () => {
     if(this.rootRef.current) {
       let i = 0;
       const thresholdHeight = document.scrollingElement.scrollTop - this.rootRef.current.clientTop + window.innerHeight - this.wrapperOffset;
@@ -170,42 +204,12 @@ class InfiniteScroll extends Component {
           break;
         } 
       }
-      i = children.length - 1 - i;
-      i = Math.min(i, this.boundary.start);
-      if (i > 0) {
-        if (this.boundary.start == 1) {
-          const _start = 0;
-          const _end = this.sliderSize;
-          if (this.isUpdateNeeded(_start, _end)) {
-            this.updateState(0, this.sliderSize, mode);
-            this.elementsSwapped = 1;
-          }
-        } else {
-          const _start = this.boundary.start - i + 1;
-          const _end = this.boundary.end - i + 1;
-          if (this.isUpdateNeeded(_start, _end)) {
-            this.updateState(_start, _end, mode);
-            this.elementsSwapped = i;
-          }
-        }
-      }
+      i > 0 && this.getTopNextElements(children.length - i);
     }
   }
 
-  getCommonItemsIndexInArray = (arrA, arrB, id) => {
-    let i = 0, j = 0;
-    for(i = 0; i < arrA.length; i++) {
-      if (arrA[i][id] == arrB[0][id]) break;
-    }
-    while(i < arrA.length && j < arrB.length && arrA[i][id] == arrB[j][id]) {
-      i++;
-      j++;
-    }
-    return j;
-  }
-
-
-  getBottomNextElements = async (elementsToBeSwapped, mode) => {
+  getBottomNextElements = async (elementsToBeSwapped) => {
+    this.setCurrentScrollMode(this.SCROLL_MODES.BOTTOM);
     this.elementsSwapped = 0;
     this.setState({loading: true});
     elementsToBeSwapped -= 1;
@@ -215,21 +219,21 @@ class InfiniteScroll extends Component {
     const _fetchEnd = _fetchStart + elementsToBeSwapped;
 
     let {data, isLast} = await this.props.getRangeData(_fetchStart, _fetchEnd);
-    if (data.length == 0) {
+    if (data.length === 0) {
       this.setState({loading: false});
       this.elementsSwapped = 0;
     } else {
-        if (isLast) {
-          elementsToBeSwapped = data.length;
-        }
-        data = [...this.state.data.slice(elementsToBeSwapped), ...data];
-        const _start = data[0][dataIndex];
-        const _end = data[data.length - 1][dataIndex] + 1;
+      if (isLast) {
+        elementsToBeSwapped = data.length;
+      }
+      data = [...this.state.data.slice(elementsToBeSwapped), ...data];
+      const _start = data[0][dataIndex];
+      const _end = data[data.length - 1][dataIndex] + 1;
 
-        if (this.isUpdateNeeded(_start, _end)) {
-          this.updateState(_start, _end, mode, data);
-          this.elementsSwapped = elementsToBeSwapped;           
-        }
+      if (this.isUpdateNeeded(_start, _end)) {
+        this.updateState(_start, _end, data);
+        this.elementsSwapped = elementsToBeSwapped;           
+      }
     }
   }
 
@@ -243,7 +247,7 @@ class InfiniteScroll extends Component {
           break;
         } 
       }
-      this.getBottomNextElements(i, this.SCROLL_MODES.BOTTOM);
+      i > 0 && this.getBottomNextElements(i);
     }
   }
 
@@ -257,26 +261,19 @@ class InfiniteScroll extends Component {
 
   isUpdateNeeded = (start, end) => {
     if (start < 0 || start > end || end < start || 
-      (start == this.boundary.start && end == this.boundary.end)) return false; 
+      (start === this.boundary.start && end === this.boundary.end)) return false; 
     return true;
   }
-  updateState = (start, end, mode, dynamicData) => {
+
+  setCurrentScrollMode = (mode) => this.currentScrollMode = mode;
+
+  updateState = (start, end, dynamicData) => {
     this.resetObservation();
-    this.currentScrollMode = mode;
     this.boundary = {
       start: start,
       end: end
     };
-    this.setState(this.getNewState(dynamicData));
-  }
-  getNewState = (dynamicData) => {
-    let addNewHeight = false;
-    const data = dynamicData.map((i) => {
-      if (!i.hasOwnProperty('visited')) addNewHeight = true; 
-      i.visited = true
-      return i;
-    });
-    return {data, addNewHeight, loading: false};
+    this.setState({data: dynamicData, loading: false});
   }
   callback = (entries, observer) => {
     entries.forEach((entry) => {
@@ -307,8 +304,9 @@ class InfiniteScroll extends Component {
     const {data, loading} = this.state;
     return (
       <div className="App">
+        <div>Dynamic</div>
         {
-          data.length == 0 && loading ?
+          data.length === 0 && loading ?
           this.props.getLoadingUI() : 
           <ul className="list-wrapper"
           ref={this.rootRef}>
